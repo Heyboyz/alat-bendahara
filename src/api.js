@@ -60,5 +60,14 @@ export const getTransactions = () => fetchGetFromGas('getTransactions');
 export const addProfile = (nama, saldo = 0) => 
   fetchFromGas('addProfile', { nama, saldo });
 
+export const editProfile = (id_profil, new_nama) => 
+  fetchFromGas('editProfile', { id_profil, new_nama });
+
 export const addTransaction = (id_profil, jenis, nominal, keterangan) => 
   fetchFromGas('addTransaction', { id_profil, jenis, nominal, keterangan });
+
+export const editTransaction = (id_transaksi, new_nominal, new_keterangan) => 
+  fetchFromGas('editTransaction', { id_transaksi, new_nominal, new_keterangan });
+
+export const deleteTransaction = (id_transaksi) => 
+  fetchFromGas('deleteTransaction', { id_transaksi });

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getProfiles, addProfile, addTransaction, WEB_APP_URL } from '../api';
-import { Plus, UserPlus, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { getProfiles, addProfile, addTransaction, editProfile, WEB_APP_URL } from '../api';
+import { Plus, UserPlus, TrendingUp, AlertCircle, CheckCircle, Edit2, Save, X } from 'lucide-react';
 
 export default function Profil() {
   const [profiles, setProfiles] = useState([]);
@@ -16,6 +16,11 @@ export default function Profil() {
   const [doingTopup, setDoingTopup] = useState(false);
   
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // State untuk Edit Nama
+  const [editingId, setEditingId] = useState(null);
+  const [editNama, setEditNama] = useState('');
+  const [processingId, setProcessingId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -47,6 +52,7 @@ export default function Profil() {
       setMessage({ type: 'danger', text: err.message });
     } finally {
       setAddingProfile(false);
+      setTimeout(() => setMessage({type:'', text:''}), 3000);
     }
   };
 
@@ -64,6 +70,28 @@ export default function Profil() {
       setMessage({ type: 'danger', text: err.message });
     } finally {
       setDoingTopup(false);
+      setTimeout(() => setMessage({type:'', text:''}), 3000);
+    }
+  };
+
+  const handleEditClick = (p) => {
+    setEditingId(p.id);
+    setEditNama(p.nama);
+  };
+
+  const handleSaveEdit = async (id) => {
+    if (!editNama.trim()) return;
+    setProcessingId(id);
+    try {
+      await editProfile(id, editNama);
+      setMessage({ type: 'success', text: 'Nama berhasil diperbarui!' });
+      setEditingId(null);
+      fetchData();
+    } catch (err) {
+      setMessage({ type: 'danger', text: err.message });
+    } finally {
+      setProcessingId(null);
+      setTimeout(() => setMessage({type:'', text:''}), 3000);
     }
   };
 
@@ -144,17 +172,48 @@ export default function Profil() {
         <h3 className="mb-4">Daftar Anggota ({profiles.length})</h3>
         {loading ? <div className="spinner"></div> : (
           <div className="flex flex-col gap-3">
-            {profiles.map(p => (
-              <div key={p.id} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)' }}>
-                <div className="font-bold text-lg">{p.nama}</div>
-                <div className="text-right">
-                  <div className="text-xs text-muted uppercase">Saldo Saat Ini</div>
-                  <div className={`font-bold ${parseFloat(p.saldo) >= 0 ? 'text-success' : 'text-danger'}`}>
-                    Rp {parseFloat(p.saldo).toLocaleString('id-ID')}
+            {profiles.map(p => {
+              const isEditing = editingId === p.id;
+              const isProcessing = processingId === p.id;
+
+              return (
+                <div key={p.id} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)' }}>
+                  
+                  {isEditing ? (
+                    <div className="flex items-center gap-2 flex-grow mr-4">
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        style={{padding: '0.25rem 0.5rem', fontSize: '1rem'}}
+                        value={editNama} 
+                        onChange={e => setEditNama(e.target.value)} 
+                        autoFocus
+                      />
+                      <button className="btn btn-success" style={{padding: '0.35rem 0.5rem'}} onClick={() => handleSaveEdit(p.id)} disabled={isProcessing}>
+                        <Save size={16} />
+                      </button>
+                      <button className="btn btn-outline" style={{padding: '0.35rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
+                        <X size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="font-bold text-lg">{p.nama}</div>
+                      <button className="btn btn-outline" style={{padding: '0.2rem 0.4rem', border: 'none', color: 'var(--text-secondary)'}} onClick={() => handleEditClick(p)}>
+                        <Edit2 size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-xs text-muted uppercase">Saldo Saat Ini</div>
+                    <div className={`font-bold ${parseFloat(p.saldo) >= 0 ? 'text-success' : 'text-danger'}`}>
+                      Rp {parseFloat(p.saldo).toLocaleString('id-ID')}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {profiles.length === 0 && (
               <div className="text-center text-muted py-8">Belum ada data anggota</div>
             )}

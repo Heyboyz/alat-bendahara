@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getProfiles, getTransactions, addTransaction, WEB_APP_URL } from '../api';
-import { TrendingDown, List, AlertCircle, CheckCircle } from 'lucide-react';
+import { getProfiles, getTransactions, addTransaction, editTransaction, deleteTransaction, WEB_APP_URL } from '../api';
+import { TrendingDown, List, AlertCircle, CheckCircle, Edit2, Trash2, X, Save } from 'lucide-react';
 
 export default function Transaksi() {
   const [profiles, setProfiles] = useState([]);
@@ -14,6 +14,12 @@ export default function Transaksi() {
   const [saving, setSaving] = useState(false);
   
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // State untuk Edit/Delete
+  const [editingId, setEditingId] = useState(null);
+  const [editNominal, setEditNominal] = useState('');
+  const [editKeterangan, setEditKeterangan] = useState('');
+  const [processingId, setProcessingId] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -51,7 +57,42 @@ export default function Transaksi() {
       setMessage({ type: 'danger', text: err.message });
     } finally {
       setSaving(false);
-      // Auto clear message
+      setTimeout(() => setMessage({type: '', text: ''}), 3000);
+    }
+  };
+
+  const handleEditClick = (t) => {
+    setEditingId(t.id);
+    setEditNominal(t.nominal);
+    setEditKeterangan(t.keterangan);
+  };
+
+  const handleSaveEdit = async (id) => {
+    setProcessingId(id);
+    try {
+      await editTransaction(id, editNominal, editKeterangan);
+      setMessage({ type: 'success', text: 'Transaksi berhasil diubah!' });
+      setEditingId(null);
+      fetchData();
+    } catch (err) {
+      setMessage({ type: 'danger', text: err.message });
+    } finally {
+      setProcessingId(null);
+      setTimeout(() => setMessage({type: '', text: ''}), 3000);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus transaksi ini? Saldo anggota akan dikembalikan otomatis.')) return;
+    setProcessingId(id);
+    try {
+      await deleteTransaction(id);
+      setMessage({ type: 'success', text: 'Transaksi berhasil dihapus!' });
+      fetchData();
+    } catch (err) {
+      setMessage({ type: 'danger', text: err.message });
+    } finally {
+      setProcessingId(null);
       setTimeout(() => setMessage({type: '', text: ''}), 3000);
     }
   };
@@ -59,10 +100,10 @@ export default function Transaksi() {
   if (!WEB_APP_URL) return <div className="text-center mt-10 text-muted">Web App URL belum diatur di Setup.</div>;
 
   return (
-    <div className="animate-fade-in grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="animate-fade-in grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       {/* Form Catat Makan */}
-      <div className="md:col-span-1">
+      <div className="lg:col-span-1">
         <div className="glass-panel sticky top-24" style={{ borderLeft: '4px solid var(--danger)' }}>
           <h3 className="mb-4 flex items-center gap-2"><TrendingDown size={20} className="text-danger" /> Catat Pengeluaran</h3>
           
@@ -125,8 +166,8 @@ export default function Transaksi() {
       </div>
 
       {/* Riwayat Transaksi */}
-      <div className="md:col-span-2">
-        <div className="glass-panel">
+      <div className="lg:col-span-2">
+        <div className="glass-panel overflow-hidden">
           <h3 className="mb-4 flex items-center gap-2"><List size={20} className="text-primary"/> Riwayat Transaksi</h3>
           
           {loading ? <div className="spinner"></div> : (
@@ -135,28 +176,84 @@ export default function Transaksi() {
                 <thead>
                   <tr>
                     <th>Tanggal</th>
-                    <th>Nama</th>
-                    <th>Tipe</th>
+                    <th>Nama & Tipe</th>
                     <th>Keterangan</th>
                     <th className="text-right">Nominal</th>
+                    <th className="text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {transactions.map(t => {
                     const prof = profiles.find(p => p.id === t.id_profil);
                     const isKredit = t.jenis === 'Kredit';
+                    const isEditing = editingId === t.id;
+                    const isProcessing = processingId === t.id;
+
                     return (
                       <tr key={t.id}>
-                        <td className="text-sm">{new Date(t.tanggal).toLocaleString('id-ID', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}</td>
-                        <td className="font-medium">{prof ? prof.nama : t.id_profil}</td>
+                        <td className="text-sm">
+                          {new Date(t.tanggal).toLocaleString('id-ID', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}
+                        </td>
                         <td>
-                          <span className={`badge ${isKredit ? 'badge-success' : 'badge-danger'}`}>
+                          <div className="font-medium">{prof ? prof.nama : t.id_profil}</div>
+                          <span className={`badge mt-1 ${isKredit ? 'badge-success' : 'badge-danger'}`} style={{fontSize: '0.65rem'}}>
                             {t.jenis}
                           </span>
                         </td>
-                        <td>{t.keterangan}</td>
+                        
+                        {/* Keterangan Column */}
+                        <td>
+                          {isEditing ? (
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem'}}
+                              value={editKeterangan} 
+                              onChange={e => setEditKeterangan(e.target.value)} 
+                            />
+                          ) : (
+                            t.keterangan
+                          )}
+                        </td>
+                        
+                        {/* Nominal Column */}
                         <td className={`text-right font-bold ${isKredit ? 'text-success' : 'text-danger'}`}>
-                          {isKredit ? '+' : '-'} Rp {parseFloat(t.nominal).toLocaleString('id-ID')}
+                          {isEditing ? (
+                            <input 
+                              type="number" 
+                              className="form-control" 
+                              style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem', width: '100px', marginLeft: 'auto', display: 'inline-block'}}
+                              value={editNominal} 
+                              onChange={e => setEditNominal(e.target.value)} 
+                            />
+                          ) : (
+                            <>{isKredit ? '+' : '-'} Rp {parseFloat(t.nominal).toLocaleString('id-ID')}</>
+                          )}
+                        </td>
+
+                        {/* Aksi Column */}
+                        <td className="text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            {isEditing ? (
+                              <>
+                                <button className="btn btn-success" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleSaveEdit(t.id)} disabled={isProcessing}>
+                                  <Save size={14} />
+                                </button>
+                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
+                                  <X size={14} />
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleEditClick(t)} disabled={processingId !== null}>
+                                  <Edit2 size={14} />
+                                </button>
+                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-bg)'}} onClick={() => handleDelete(t.id)} disabled={processingId !== null}>
+                                  <Trash2 size={14} />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
