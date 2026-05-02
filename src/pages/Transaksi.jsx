@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { getProfiles, getTransactions, addTransaction, editTransaction, deleteTransaction, WEB_APP_URL } from '../api';
-import { TrendingDown, List, AlertCircle, CheckCircle, Edit2, Trash2, X, Save } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAppContext } from '../context/AppContext';
+import { WEB_APP_URL } from '../api';
+import { TrendingDown, List, AlertCircle, CheckCircle, Edit2, Trash2, X, Save, RefreshCw } from 'lucide-react';
 
 export default function Transaksi() {
-  const [profiles, setProfiles] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { profiles, transactions, isSyncing, addTransactionOpt, editTransactionOpt, deleteTransactionOpt } = useAppContext();
   
   // Transaksi form (Debit)
   const [selectedProfile, setSelectedProfile] = useState('');
@@ -21,38 +20,16 @@ export default function Transaksi() {
   const [editKeterangan, setEditKeterangan] = useState('');
   const [processingId, setProcessingId] = useState(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [profData, transData] = await Promise.all([
-        getProfiles(),
-        getTransactions()
-      ]);
-      setProfiles(profData || []);
-      setTransactions(transData || []);
-    } catch (err) {
-      setMessage({ type: 'danger', text: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (WEB_APP_URL) fetchData();
-    else setLoading(false);
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedProfile || !nominal) return;
     setSaving(true);
     try {
-      await addTransaction(selectedProfile, 'Debit', nominal, keterangan);
+      await addTransactionOpt(selectedProfile, 'Debit', nominal, keterangan);
       setMessage({ type: 'success', text: 'Pengeluaran makan berhasil dicatat!' });
       setSelectedProfile('');
       setNominal('');
       setKeterangan('Makan Siang');
-      fetchData(); // Refresh data
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -70,10 +47,9 @@ export default function Transaksi() {
   const handleSaveEdit = async (id) => {
     setProcessingId(id);
     try {
-      await editTransaction(id, editNominal, editKeterangan);
+      await editTransactionOpt(id, editNominal, editKeterangan);
       setMessage({ type: 'success', text: 'Transaksi berhasil diubah!' });
       setEditingId(null);
-      fetchData();
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -86,9 +62,8 @@ export default function Transaksi() {
     if (!window.confirm('Apakah Anda yakin ingin menghapus transaksi ini? Saldo anggota akan dikembalikan otomatis.')) return;
     setProcessingId(id);
     try {
-      await deleteTransaction(id);
+      await deleteTransactionOpt(id);
       setMessage({ type: 'success', text: 'Transaksi berhasil dihapus!' });
-      fetchData();
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -168,103 +143,105 @@ export default function Transaksi() {
       {/* Riwayat Transaksi */}
       <div className="lg:col-span-2">
         <div className="glass-panel overflow-hidden">
-          <h3 className="mb-4 flex items-center gap-2"><List size={20} className="text-primary"/> Riwayat Transaksi</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="m-0 flex items-center gap-2"><List size={20} className="text-primary"/> Riwayat Transaksi</h3>
+            {isSyncing && <span className="text-xs text-muted flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /></span>}
+          </div>
           
-          {loading ? <div className="spinner"></div> : (
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Tanggal</th>
-                    <th>Nama & Tipe</th>
-                    <th>Keterangan</th>
-                    <th className="text-right">Nominal</th>
-                    <th className="text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map(t => {
-                    const prof = profiles.find(p => p.id === t.id_profil);
-                    const isKredit = t.jenis === 'Kredit';
-                    const isEditing = editingId === t.id;
-                    const isProcessing = processingId === t.id;
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Nama & Tipe</th>
+                  <th>Keterangan</th>
+                  <th className="text-right">Nominal</th>
+                  <th className="text-center">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map(t => {
+                  const prof = profiles.find(p => p.id === t.id_profil);
+                  const isKredit = t.jenis === 'Kredit';
+                  const isEditing = editingId === t.id;
+                  const isProcessing = processingId === t.id;
+                  const isTemp = String(t.id).startsWith('temp-');
 
-                    return (
-                      <tr key={t.id}>
-                        <td className="text-sm">
-                          {new Date(t.tanggal).toLocaleString('id-ID', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}
-                        </td>
-                        <td>
-                          <div className="font-medium">{prof ? prof.nama : t.id_profil}</div>
-                          <span className={`badge mt-1 ${isKredit ? 'badge-success' : 'badge-danger'}`} style={{fontSize: '0.65rem'}}>
-                            {t.jenis}
-                          </span>
-                        </td>
-                        
-                        {/* Keterangan Column */}
-                        <td>
-                          {isEditing ? (
-                            <input 
-                              type="text" 
-                              className="form-control" 
-                              style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem'}}
-                              value={editKeterangan} 
-                              onChange={e => setEditKeterangan(e.target.value)} 
-                            />
-                          ) : (
-                            t.keterangan
-                          )}
-                        </td>
-                        
-                        {/* Nominal Column */}
-                        <td className={`text-right font-bold ${isKredit ? 'text-success' : 'text-danger'}`}>
-                          {isEditing ? (
-                            <input 
-                              type="number" 
-                              className="form-control" 
-                              style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem', width: '100px', marginLeft: 'auto', display: 'inline-block'}}
-                              value={editNominal} 
-                              onChange={e => setEditNominal(e.target.value)} 
-                            />
-                          ) : (
-                            <>{isKredit ? '+' : '-'} Rp {parseFloat(t.nominal).toLocaleString('id-ID')}</>
-                          )}
-                        </td>
+                  return (
+                    <tr key={t.id} style={{ opacity: isTemp ? 0.6 : 1 }}>
+                      <td className="text-sm">
+                        {new Date(t.tanggal).toLocaleString('id-ID', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'})}
+                      </td>
+                      <td>
+                        <div className="font-medium">{prof ? prof.nama : t.id_profil}</div>
+                        <span className={`badge mt-1 ${isKredit ? 'badge-success' : 'badge-danger'}`} style={{fontSize: '0.65rem'}}>
+                          {t.jenis}
+                        </span>
+                      </td>
+                      
+                      {/* Keterangan Column */}
+                      <td>
+                        {isEditing ? (
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem'}}
+                            value={editKeterangan} 
+                            onChange={e => setEditKeterangan(e.target.value)} 
+                          />
+                        ) : (
+                          t.keterangan
+                        )}
+                      </td>
+                      
+                      {/* Nominal Column */}
+                      <td className={`text-right font-bold ${isKredit ? 'text-success' : 'text-danger'}`}>
+                        {isEditing ? (
+                          <input 
+                            type="number" 
+                            className="form-control" 
+                            style={{padding: '0.25rem 0.5rem', fontSize: '0.875rem', width: '100px', marginLeft: 'auto', display: 'inline-block'}}
+                            value={editNominal} 
+                            onChange={e => setEditNominal(e.target.value)} 
+                          />
+                        ) : (
+                          <>{isKredit ? '+' : '-'} Rp {parseFloat(t.nominal).toLocaleString('id-ID')}</>
+                        )}
+                      </td>
 
-                        {/* Aksi Column */}
-                        <td className="text-center">
-                          <div className="flex items-center justify-center gap-2">
-                            {isEditing ? (
-                              <>
-                                <button className="btn btn-success" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleSaveEdit(t.id)} disabled={isProcessing}>
-                                  <Save size={14} />
-                                </button>
-                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
-                                  <X size={14} />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleEditClick(t)} disabled={processingId !== null}>
-                                  <Edit2 size={14} />
-                                </button>
-                                <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-bg)'}} onClick={() => handleDelete(t.id)} disabled={processingId !== null}>
-                                  <Trash2 size={14} />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {transactions.length === 0 && (
-                    <tr><td colSpan="5" className="text-center text-muted py-6">Belum ada transaksi</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+                      {/* Aksi Column */}
+                      <td className="text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {isEditing ? (
+                            <>
+                              <button className="btn btn-success" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleSaveEdit(t.id)} disabled={isProcessing}>
+                                <Save size={14} />
+                              </button>
+                              <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
+                                <X size={14} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem'}} onClick={() => handleEditClick(t)} disabled={processingId !== null || isTemp}>
+                                <Edit2 size={14} />
+                              </button>
+                              <button className="btn btn-outline" style={{padding: '0.25rem 0.5rem', color: 'var(--danger)', borderColor: 'var(--danger-bg)'}} onClick={() => handleDelete(t.id)} disabled={processingId !== null || isTemp}>
+                                <Trash2 size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {transactions.length === 0 && (
+                  <tr><td colSpan="5" className="text-center text-muted py-6">Belum ada transaksi</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

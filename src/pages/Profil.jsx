@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { getProfiles, addProfile, addTransaction, editProfile, WEB_APP_URL } from '../api';
-import { Plus, UserPlus, TrendingUp, AlertCircle, CheckCircle, Edit2, Save, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAppContext } from '../context/AppContext';
+import { WEB_APP_URL } from '../api';
+import { UserPlus, TrendingUp, AlertCircle, CheckCircle, Edit2, Save, X, RefreshCw } from 'lucide-react';
 
 export default function Profil() {
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { profiles, isSyncing, addProfileOpt, editProfileOpt, addTransactionOpt } = useAppContext();
   
   // Add Profile form
   const [newNama, setNewNama] = useState('');
@@ -22,32 +22,14 @@ export default function Profil() {
   const [editNama, setEditNama] = useState('');
   const [processingId, setProcessingId] = useState(null);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const data = await getProfiles();
-      setProfiles(data || []);
-    } catch (err) {
-      setMessage({ type: 'danger', text: err.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (WEB_APP_URL) fetchData();
-    else setLoading(false);
-  }, []);
-
   const handleAddProfile = async (e) => {
     e.preventDefault();
     if (!newNama) return;
     setAddingProfile(true);
     try {
-      await addProfile(newNama, 0);
+      await addProfileOpt(newNama);
       setMessage({ type: 'success', text: `Anggota ${newNama} berhasil ditambahkan!` });
       setNewNama('');
-      fetchData();
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -61,11 +43,10 @@ export default function Profil() {
     if (!selectedProfile || !topupNominal) return;
     setDoingTopup(true);
     try {
-      await addTransaction(selectedProfile, 'Kredit', topupNominal, 'Top Up Saldo');
+      await addTransactionOpt(selectedProfile, 'Kredit', topupNominal, 'Top Up Saldo');
       setMessage({ type: 'success', text: 'Top Up berhasil dicatat!' });
       setSelectedProfile('');
       setTopupNominal('');
-      fetchData();
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -83,10 +64,9 @@ export default function Profil() {
     if (!editNama.trim()) return;
     setProcessingId(id);
     try {
-      await editProfile(id, editNama);
+      await editProfileOpt(id, editNama);
       setMessage({ type: 'success', text: 'Nama berhasil diperbarui!' });
       setEditingId(null);
-      fetchData();
     } catch (err) {
       setMessage({ type: 'danger', text: err.message });
     } finally {
@@ -169,56 +149,59 @@ export default function Profil() {
 
       {/* Daftar Anggota */}
       <div className="glass-panel">
-        <h3 className="mb-4">Daftar Anggota ({profiles.length})</h3>
-        {loading ? <div className="spinner"></div> : (
-          <div className="flex flex-col gap-3">
-            {profiles.map(p => {
-              const isEditing = editingId === p.id;
-              const isProcessing = processingId === p.id;
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="m-0">Daftar Anggota ({profiles.length})</h3>
+          {isSyncing && <span className="text-xs text-muted flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /></span>}
+        </div>
+        
+        <div className="flex flex-col gap-3">
+          {profiles.map(p => {
+            const isEditing = editingId === p.id;
+            const isProcessing = processingId === p.id;
+            const isTemp = String(p.id).startsWith('temp-');
 
-              return (
-                <div key={p.id} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)' }}>
-                  
-                  {isEditing ? (
-                    <div className="flex items-center gap-2 flex-grow mr-4">
-                      <input 
-                        type="text" 
-                        className="form-control" 
-                        style={{padding: '0.25rem 0.5rem', fontSize: '1rem'}}
-                        value={editNama} 
-                        onChange={e => setEditNama(e.target.value)} 
-                        autoFocus
-                      />
-                      <button className="btn btn-success" style={{padding: '0.35rem 0.5rem'}} onClick={() => handleSaveEdit(p.id)} disabled={isProcessing}>
-                        <Save size={16} />
-                      </button>
-                      <button className="btn btn-outline" style={{padding: '0.35rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="font-bold text-lg">{p.nama}</div>
-                      <button className="btn btn-outline" style={{padding: '0.2rem 0.4rem', border: 'none', color: 'var(--text-secondary)'}} onClick={() => handleEditClick(p)}>
-                        <Edit2 size={14} />
-                      </button>
-                    </div>
-                  )}
+            return (
+              <div key={p.id} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: 'rgba(0,0,0,0.2)', border: '1px solid var(--border)', opacity: isTemp ? 0.7 : 1 }}>
+                
+                {isEditing ? (
+                  <div className="flex items-center gap-2 flex-grow mr-4">
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      style={{padding: '0.25rem 0.5rem', fontSize: '1rem'}}
+                      value={editNama} 
+                      onChange={e => setEditNama(e.target.value)} 
+                      autoFocus
+                    />
+                    <button className="btn btn-success" style={{padding: '0.35rem 0.5rem'}} onClick={() => handleSaveEdit(p.id)} disabled={isProcessing}>
+                      <Save size={16} />
+                    </button>
+                    <button className="btn btn-outline" style={{padding: '0.35rem 0.5rem'}} onClick={() => setEditingId(null)} disabled={isProcessing}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="font-bold text-lg">{p.nama}</div>
+                    <button className="btn btn-outline" style={{padding: '0.2rem 0.4rem', border: 'none', color: 'var(--text-secondary)'}} onClick={() => handleEditClick(p)} disabled={isTemp}>
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
+                )}
 
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-xs text-muted uppercase">Saldo Saat Ini</div>
-                    <div className={`font-bold ${parseFloat(p.saldo) >= 0 ? 'text-success' : 'text-danger'}`}>
-                      Rp {parseFloat(p.saldo).toLocaleString('id-ID')}
-                    </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xs text-muted uppercase">Saldo Saat Ini</div>
+                  <div className={`font-bold ${parseFloat(p.saldo) >= 0 ? 'text-success' : 'text-danger'}`}>
+                    Rp {parseFloat(p.saldo).toLocaleString('id-ID')}
                   </div>
                 </div>
-              );
-            })}
-            {profiles.length === 0 && (
-              <div className="text-center text-muted py-8">Belum ada data anggota</div>
-            )}
-          </div>
-        )}
+              </div>
+            );
+          })}
+          {profiles.length === 0 && (
+            <div className="text-center text-muted py-8">Belum ada data anggota</div>
+          )}
+        </div>
       </div>
     </div>
   );

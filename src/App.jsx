@@ -5,22 +5,25 @@ import Dashboard from './pages/Dashboard';
 import Profil from './pages/Profil';
 import Transaksi from './pages/Transaksi';
 import Setup from './pages/Setup';
+import { AppProvider } from './context/AppContext';
 
 function App() {
   return (
-    <HashRouter>
-      <div className="app-container">
-        <Navbar />
-        <main>
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/profil" element={<Profil />} />
-            <Route path="/transaksi" element={<Transaksi />} />
-            <Route path="/setup" element={<Setup />} />
-          </Routes>
-        </main>
-      </div>
-    </HashRouter>
+    <AppProvider>
+      <HashRouter>
+        <div className="app-container">
+          <Navbar />
+          <main>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/profil" element={<Profil />} />
+              <Route path="/transaksi" element={<Transaksi />} />
+              <Route path="/setup" element={<Setup />} />
+            </Routes>
+          </main>
+        </div>
+      </HashRouter>
+    </AppProvider>
   );
 }
 

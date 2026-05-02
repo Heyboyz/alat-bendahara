@@ -1,37 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
-import { getProfiles, getTransactions, WEB_APP_URL } from '../api';
-import { Wallet, TrendingUp, TrendingDown, Users, AlertCircle } from 'lucide-react';
+import { useAppContext } from '../context/AppContext';
+import { WEB_APP_URL } from '../api';
+import { Wallet, TrendingUp, TrendingDown, Users, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function Dashboard() {
-  const [profiles, setProfiles] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (!WEB_APP_URL) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchData = async () => {
-      try {
-        const [profData, transData] = await Promise.all([
-          getProfiles(),
-          getTransactions()
-        ]);
-        setProfiles(profData || []);
-        setTransactions(transData ? transData.slice(0, 5) : []); // Only latest 5
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
+  const { profiles, transactions, isSyncing, globalError } = useAppContext();
 
   if (!WEB_APP_URL) {
     return (
@@ -44,21 +18,22 @@ export default function Dashboard() {
     );
   }
 
-  if (loading) return <div className="spinner"></div>;
-  
-  if (error) return (
-    <div className="glass-panel text-center text-danger">
-      <AlertCircle size={48} className="mx-auto mb-4" />
-      <h3>Terjadi Kesalahan</h3>
-      <p>{error}</p>
-    </div>
-  );
-
   const totalSaldo = profiles.reduce((sum, p) => sum + parseFloat(p.saldo || 0), 0);
 
   return (
     <div className="animate-fade-in">
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      {globalError && (
+        <div className="mb-4 p-3 rounded-md text-sm text-danger" style={{ backgroundColor: 'var(--danger-bg)' }}>
+          <AlertCircle size={16} className="inline mr-2" /> {globalError}
+        </div>
+      )}
+
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="m-0">Ringkasan</h2>
+        {isSyncing && <span className="text-xs text-muted flex items-center gap-1"><RefreshCw size={12} className="animate-spin" /> Menyinkronkan...</span>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="glass-panel text-center">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full mb-4" style={{ backgroundColor: 'var(--success-bg)', color: 'var(--success)' }}>
             <Wallet size={24} />
@@ -85,7 +60,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-panel">
           <div className="flex items-center justify-between mb-4">
             <h3 className="m-0 flex items-center gap-2"><Users size={20} className="text-primary"/> Saldo Anggota</h3>
@@ -118,7 +93,7 @@ export default function Dashboard() {
 
         <div className="glass-panel">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="m-0 flex items-center gap-2"><ArrowRightLeft size={20} className="text-primary"/> Transaksi Terakhir</h3>
+            <h3 className="m-0 flex items-center gap-2">Riwayat Transaksi</h3>
             <Link to="/transaksi" className="text-sm text-primary" style={{ textDecoration: 'none' }}>Lihat Semua</Link>
           </div>
           <div className="table-container">
@@ -131,7 +106,7 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(t => (
+                {transactions.slice(0, 5).map(t => (
                   <tr key={t.id}>
                     <td>
                       <span className={`badge ${t.jenis === 'Kredit' ? 'badge-success' : 'badge-danger'}`}>
@@ -155,5 +130,3 @@ export default function Dashboard() {
     </div>
   );
 }
-
-import { ArrowRightLeft } from 'lucide-react';
